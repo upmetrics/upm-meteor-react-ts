@@ -126,11 +126,13 @@ export const Meteor = {
     }) as any;
 
     (DataService.ddp as any).on('connected', () => {
-      // Clear the collections of any stale data in case this is a reconnect
+      // Clear non-user collections of stale data in case this is a reconnect.
+      // The 'users' collection is preserved so that Meteor.user() continues to
+      // return the current user during the reconnect window.  Subscriptions will
+      // sync fresh data once they restart.
       if ((DataService.db as any) && (DataService.db as any).collections) {
         for (const collection of Object.keys((DataService.db as any).collections)) {
-          if (!localCollections.includes(collection)) {
-            // Dont clear data from local collections
+          if (collection !== 'users' && !localCollections.includes(collection)) {
             (DataService.db as any)[collection].remove({});
           }
         }
