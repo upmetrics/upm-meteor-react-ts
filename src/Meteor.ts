@@ -126,19 +126,16 @@ export const Meteor = {
     }) as any;
 
     (DataService.ddp as any).on('connected', () => {
-      // Clear non-user collections of stale data in case this is a reconnect.
-      // The 'users' collection is preserved so that Meteor.user() continues to
-      // return the current user during the reconnect window.  Subscriptions will
-      // sync fresh data once they restart.
-      if ((DataService.db as any) && (DataService.db as any).collections) {
-        for (const collection of Object.keys((DataService.db as any).collections)) {
-          if (collection !== 'users' && !localCollections.includes(collection)) {
-            (DataService.db as any)[collection].remove({});
-          }
-        }
-      }
-
-      DataService.notify('change');
+      // Do NOT clear collections on reconnect. Preserving existing data avoids
+      // a visual flash where components render with empty state before
+      // subscriptions deliver fresh data.  Subscription restart will upsert
+      // current documents; any stale documents are harmless and will be cleaned
+      // up on the next subscription change.
+      //
+      // Do NOT call DataService.notify('change') here — the DDP 'connected'
+      // event already triggers all useTracker hooks via Data.onChange's
+      // ddp.on('connected') registration.  An additional notify causes
+      // redundant re-renders during the reconnect window.
 
       if (isVerbose) {
         info(`Connected to DDP server ${endpoint}`);
@@ -150,7 +147,9 @@ export const Meteor = {
 
     let lastDisconnect: Date | null = null;
     (DataService.ddp as any).on('disconnected', () => {
-      DataService.notify('change');
+      // Do NOT call DataService.notify('change') here — the DDP 'disconnected'
+      // event already triggers all useTracker hooks via Data.onChange's
+      // ddp.on('disconnected') registration.
 
       if (isVerbose) {
         info('Disconnected from DDP server.');

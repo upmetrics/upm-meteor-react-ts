@@ -76,7 +76,7 @@ interface UserAPI {
   _startLoggingIn(): void;
   _endLoggingIn(): void;
   _handleLoginCallback(err: Error | null, result?: LoginResult): void;
-  _loginWithToken(value: string | null): void;
+  _loginWithToken(value: string | null): Promise<void>;
   getAuthToken(): string | null;
   _loadInitialUser(): Promise<void>;
   _isLoggingIn: boolean;
@@ -213,19 +213,23 @@ const User: UserAPI = {
     DataTyped.notify('change');
   },
 
-  _loginWithToken(value: string | null): void {
-    DataTyped._tokenIdSaved = value;
-    if (value !== null) {
-  getMeteor().isVerbose() && info(`User._loginWithToken::: token: ${value}`);
-      User._startLoggingIn();
-  getMeteor().call('login', { resume: value } as LoginRequest, (err: Error | null, result?: LoginResult) => {
+  _loginWithToken(value: string | null): Promise<void> {
+    return new Promise<void>((resolve) => {
+      DataTyped._tokenIdSaved = value;
+      if (value !== null) {
+    getMeteor().isVerbose() && info(`User._loginWithToken::: token: ${value}`);
+        User._startLoggingIn();
+    getMeteor().call('login', { resume: value } as LoginRequest, (err: Error | null, result?: LoginResult) => {
+          User._endLoggingIn();
+          User._handleLoginCallback(err, result);
+          resolve();
+        });
+      } else {
+    getMeteor().isVerbose() && info('User._loginWithToken::: token is null');
         User._endLoggingIn();
-        User._handleLoginCallback(err, result);
-      });
-    } else {
-  getMeteor().isVerbose() && info('User._loginWithToken::: token is null');
-      User._endLoggingIn();
-    }
+        resolve();
+      }
+    });
   },
 
   getAuthToken(): string | null {
@@ -235,16 +239,12 @@ const User: UserAPI = {
   async _loadInitialUser(): Promise<void> {
     let value: string | null = null;
     try {
-      // localStorage.getItem is synchronous but awaiting is harmless; type is string | null
-      // keep behavior similar to original code
-      value = await localStorage.getItem(TOKEN_KEY);
+      value = localStorage.getItem(TOKEN_KEY);
     } catch (error) {
-      // Narrow error to Error for strict typing
       const err = error as Error;
       console.warn('LocalStorage error: ' + err.message);
-    } finally {
-      User._loginWithToken(value);
     }
+    await User._loginWithToken(value);
   },
 };
 
