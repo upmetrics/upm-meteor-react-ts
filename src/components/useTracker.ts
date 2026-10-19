@@ -41,28 +41,24 @@ const Data = DataImport as unknown as DataModule;
 export default function useTracker<T>(trackerFn: () => T, deps: DependencyList = []): T {
   const [response, setResponse] = useState<T>(() => trackerFn());
 
-  const meteorDataDep: TrackerDependency = new Tracker.Dependency();
-
-  let computation: TrackerComputation | null = null;
-
-  const dataChangedCallback = (): void => {
-    meteorDataDep.changed();
-  };
-
-  const stopComputation = (): void => {
-    if (computation) {
-      computation.stop();
-    }
-    computation = null;
-  };
-
-  // Register for external Data change notifications. This mirrors the original logic
-  // where onChange is called during hook execution.
-  Data.onChange(dataChangedCallback);
-
   useEffect(() => {
-    stopComputation();
+    // One dependency, one Data listener and one computation per effect run: registered here and
+    // removed by this effect's cleanup. The listener used to be registered during render, which
+    // added a new one on every render while the cleanup removed only one, so listeners piled up
+    // for as long as the page stayed open and every data change ran all of them.
+    const meteorDataDep: TrackerDependency = new Tracker.Dependency();
+    const dataChangedCallback = (): void => {
+      meteorDataDep.changed();
+    };
+    let computation: TrackerComputation | null = null;
+    const stopComputation = (): void => {
+      if (computation) {
+        computation.stop();
+      }
+      computation = null;
+    };
 
+    Data.onChange(dataChangedCallback);
     Tracker.nonreactive(() =>
       Tracker.autorun((currentComputation: TrackerComputation) => {
         meteorDataDep.depend();

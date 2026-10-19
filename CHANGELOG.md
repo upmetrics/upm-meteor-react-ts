@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`useTracker` listener leak**: the Data change listener was registered during render, so every
+  re-render added one that the effect cleanup never removed (50 re-renders left 50 listeners behind
+  after unmount, each run on every data change). It is now registered and removed inside the
+  effect: one listener per mounted hook, none after unmount.
+
 ## [1.5.0] - 2025-07-30
 
 ### Added
